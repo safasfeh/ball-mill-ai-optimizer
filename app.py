@@ -6,7 +6,6 @@ st.set_page_config(page_title="AI-Assisted Ball Mill Energy Optimization", layou
 MODELS_DIR = Path("models")
 POWER_MODEL = MODELS_DIR / "power_model.pkl"
 
-# Train models once if they don't exist yet
 if not POWER_MODEL.exists():
     import train_model
     train_model.main()
@@ -22,12 +21,13 @@ target_p80 = st.sidebar.slider("Target P80 (µm)", 80, 250, 150)
 min_thr = st.sidebar.slider("Minimum Throughput (t/h)", 10, 30, 18)
 
 if st.button("Run Optimization"):
-    result = optimize(
-        bwi=bwi,
-        cyclone=cyclone,
-        target_p80=target_p80,
-        min_thr=min_thr,
-    )
+    with st.spinner("Running optimization..."):
+        result = optimize(
+            bwi=bwi,
+            cyclone=cyclone,
+            target_p80=target_p80,
+            min_thr=min_thr,
+        )
 
     if result:
         st.success("Optimal operating point found")
