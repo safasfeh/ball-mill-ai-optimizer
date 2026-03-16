@@ -6,17 +6,9 @@ import joblib
 MODELS_DIR = Path("models")
 
 def load_models():
-    power_path = MODELS_DIR / "power_model.pkl"
-    p80_path = MODELS_DIR / "p80_model.pkl"
-    thr_path = MODELS_DIR / "throughput_model.pkl"
-
-    if not (power_path.exists() and p80_path.exists() and thr_path.exists()):
-        import train_model
-        train_model.main()
-
-    power_model = joblib.load(power_path)
-    p80_model = joblib.load(p80_path)
-    thr_model = joblib.load(thr_path)
+    power_model = joblib.load(MODELS_DIR / "power_model.pkl")
+    p80_model = joblib.load(MODELS_DIR / "p80_model.pkl")
+    thr_model = joblib.load(MODELS_DIR / "throughput_model.pkl")
     return power_model, p80_model, thr_model
 
 
@@ -25,43 +17,55 @@ def optimize(bwi, cyclone, target_p80, min_thr):
 
     best = None
 
-    for speed in np.arange(65, 83, 1):
-        for fill in np.arange(25, 41, 1):
-            for feed in np.arange(15, 31, 1):
-                for solids in np.arange(60, 79, 2):
+    # Reduced search ranges for faster cloud performance
+    speed_range = np.arange(68, 81, 2)
+    fill_range = np.arange(28, 39, 2)
+    feed_range = np.arange(18, 29, 2)
+    solids_range = np.arange(62, 77, 3)
 
-                    row = pd.DataFrame([{
-                        "mill_speed_pct": speed,
-                        "ball_filling_pct": fill,
-                        "feed_rate_tph": feed,
-                        "solids_pct": solids,
-                        "bond_work_index": bwi,
-                        "cyclone_pressure_kpa": cyclone
-                    }])
+    rows = []
+    for speed in speed_range:
+        for fill in fill_range:
+            for feed in feed_range:
+                for solids in solids_range:
+                rows.append({
+                    "mill_speed_pct": speed,
+                    "ball_filling_pct": fill,
+                    "feed_rate_tph": feed,
+                    "solids_pct": solids,
+                    "bond_work_index": bwi,
+                    "cyclone_pressure_kpa": cyclone
+                })
 
-                    power = float(power_model.predict(row)[0])
-                    p80 = float(p80_model.predict(row)[0])
-                    thr = float(thr_model.predict(row)[0])
+    df = pd.DataFrame(rows)
 
-                    sec = power / thr
+    power_pred = power_model.predict(df)
+    p80_pred = p80_model.predict(df)
+    thr_pred = thr_model.predict(df)
 
-                    if p80 > target_p80:
-                        continue
-                    if thr < min_thr:
-                        continue
-                    if power > 1500:
-                        continue
+    df["power_kw"] = power_pred
+    df["p80_um"] = p80_pred
+    df["throughput_tph"] = thr_pred
+    df["SEC_kwh_per_t"] = df["power_kw"] / df["throughput_tph"]
 
-                    if best is None or sec < best["SEC"]:
-                        best = {
-                            "speed_pct_critical": speed,
-                            "ball_filling_pct": fill,
-                            "feed_rate_tph": feed,
-                            "solids_pct": solids,
-                            "power_kw": round(power, 2),
-                            "p80_um": round(p80, 2),
-                            "throughput_tph": round(thr, 2),
-                            "SEC_kwh_per_t": round(sec, 3),
-                        }
+    df = df[
+        (df["p80_um"] <= target_p80) &
+        (df["throughput_tph"] >= min_thr) &
+        (df["power_kw"] <= 1500)
+    ]
 
-    return best
+    if df.empty:
+        return None
+
+    best_row = df.sort_values("SEC_kwh_per_t").iloc[0]
+
+    return {
+        "speed_pct_critical": int(best_row["mill_speed_pct"]),
+        "ball_filling_pct": int(best_row["ball_filling_pct"]),
+        "feed_rate_tph": round(float(best_row["feed_rate_tph"]), 2),
+        "solids_pct": int(best_row["solids_pct"]),
+        "power_kw": round(float(best_row["power_kw"]), 2),
+        "p80_um": round(float(best_row["p80_um"]), 2),
+        "throughput_tph": round(float(best_row["throughput_tph"]), 2),
+        "SEC_kwh_per_t": round(float(best_row["SEC_kwh_per_t"]), 3),
+    }
