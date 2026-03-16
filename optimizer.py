@@ -5,6 +5,15 @@ import joblib
 
 MODELS_DIR = Path("models")
 
+FEATURES = [
+    "mill_speed_pct",
+    "ball_filling_pct",
+    "feed_rate_tph",
+    "solids_pct",
+    "bond_work_index",
+    "cyclone_pressure_kpa",
+]
+
 
 def load_models():
     power_model = joblib.load(MODELS_DIR / "power_model.pkl")
@@ -14,7 +23,6 @@ def load_models():
 
 
 def optimize(bwi, cyclone, target_p80, min_thr):
-
     power_model, p80_model, thr_model = load_models()
 
     speed_range = np.arange(70, 80, 2)
@@ -28,7 +36,6 @@ def optimize(bwi, cyclone, target_p80, min_thr):
         for fill in fill_range:
             for feed in feed_range:
                 for solids in solids_range:
-
                     rows.append({
                         "mill_speed_pct": speed,
                         "ball_filling_pct": fill,
@@ -40,9 +47,11 @@ def optimize(bwi, cyclone, target_p80, min_thr):
 
     df = pd.DataFrame(rows)
 
-    df["power_kw"] = power_model.predict(df)
-    df["p80_um"] = p80_model.predict(df)
-    df["throughput_tph"] = thr_model.predict(df)
+    X = df[FEATURES].copy()
+
+    df["power_kw"] = power_model.predict(X)
+    df["p80_um"] = p80_model.predict(X)
+    df["throughput_tph"] = thr_model.predict(X)
 
     df["SEC_kwh_per_t"] = df["power_kw"] / df["throughput_tph"]
 
