@@ -1,3 +1,8 @@
+import os
+
+if not os.path.exists("models/power_model.pkl"):
+    import train_model
+    
 from __future__ import annotations
 
 import json
