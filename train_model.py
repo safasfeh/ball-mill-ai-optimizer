@@ -9,15 +9,15 @@ BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 MODELS_DIR = BASE_DIR / "models"
 
+
 def main():
     DATA_DIR.mkdir(exist_ok=True)
     MODELS_DIR.mkdir(exist_ok=True)
 
     rows = []
-
     rng = np.random.default_rng(42)
 
-    for _ in range(2500):
+    for _ in range(3000):
         speed = rng.uniform(65, 82)
         filling = rng.uniform(25, 40)
         feed = rng.uniform(15, 30)
@@ -25,9 +25,7 @@ def main():
         bwi = rng.uniform(12, 18)
         cyclone = rng.uniform(90, 150)
 
-        power, p80, thr = simulate_ball_mill(
-            speed, filling, feed, solids, bwi, cyclone
-        )
+        power, p80, thr = simulate_ball_mill(speed, filling, feed, solids, bwi, cyclone)
 
         rows.append({
             "mill_speed_pct": speed,
@@ -66,6 +64,7 @@ def main():
     joblib.dump(power_model, MODELS_DIR / "power_model.pkl")
     joblib.dump(p80_model, MODELS_DIR / "p80_model.pkl")
     joblib.dump(thr_model, MODELS_DIR / "throughput_model.pkl")
+
 
 if __name__ == "__main__":
     main()
