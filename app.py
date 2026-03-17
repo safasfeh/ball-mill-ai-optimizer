@@ -2,7 +2,7 @@ import streamlit as st
 from pathlib import Path
 import pandas as pd
 import matplotlib.pyplot as plt
-
+from PIL import Image
 MODELS_DIR = Path("models")
 if not (MODELS_DIR / "power_model.pkl").exists():
     import train_model
@@ -11,7 +11,22 @@ if not (MODELS_DIR / "power_model.pkl").exists():
 from optimizer import optimize, evaluate_point, generate_contour_data, get_feature_importance
 
 st.set_page_config(page_title="AI-Assisted Ball Mill Energy Optimization", layout="wide")
+# ---------------- Logo Header ----------------
+logo = Image.open("mst_logo.png")
 
+col1, col2 = st.columns([1, 5])
+
+with col1:
+    st.image(logo, width=120)
+
+with col2:
+    st.markdown(
+        """
+        <h3 style='margin-bottom:0;'>Missouri University of Science and Technology</h3>
+        <p style='margin-top:0;'>AI-Assisted Ball Mill Optimization</p>
+        """,
+        unsafe_allow_html=True
+    )
 st.title("AI-Assisted Ball Mill Energy Optimization")
 st.markdown("Hybrid AI-based decision-support dashboard for ball mill power and grind-size optimization.")
 
