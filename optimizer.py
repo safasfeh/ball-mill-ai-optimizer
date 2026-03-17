@@ -137,3 +137,61 @@ def get_feature_importance():
     }).sort_values("Importance", ascending=False)
 
     return df
+
+def generate_recommendations(baseline_inputs, optimized_result):
+    recommendations = []
+
+    def compare(value_base, value_opt, threshold, increase_text, decrease_text, keep_text):
+        diff = value_opt - value_base
+        if diff > threshold:
+            return increase_text
+        elif diff < -threshold:
+            return decrease_text
+        else:
+            return keep_text
+
+    recommendations.append(
+        compare(
+            baseline_inputs["speed"],
+            optimized_result["speed_pct_critical"],
+            1,
+            "Increase mill speed to improve grinding efficiency and lower specific energy.",
+            "Reduce mill speed to avoid unnecessary power draw.",
+            "Maintain current mill speed."
+        )
+    )
+
+    recommendations.append(
+        compare(
+            baseline_inputs["fill"],
+            optimized_result["ball_filling_pct"],
+            1,
+            "Increase ball filling to strengthen grinding action.",
+            "Reduce ball filling to avoid excessive charge load and energy use.",
+            "Maintain current ball filling."
+        )
+    )
+
+    recommendations.append(
+        compare(
+            baseline_inputs["feed"],
+            optimized_result["feed_rate_tph"],
+            0.5,
+            "Increase feed rate to improve throughput while maintaining acceptable energy efficiency.",
+            "Reduce feed rate to improve grind size control and reduce overload risk.",
+            "Maintain current feed rate."
+        )
+    )
+
+    recommendations.append(
+        compare(
+            baseline_inputs["solids"],
+            optimized_result["solids_pct"],
+            1,
+            "Increase slurry solids to improve energy utilization in the mill.",
+            "Reduce slurry solids to improve transport and avoid viscosity-related inefficiencies.",
+            "Maintain current solids percentage."
+        )
+    )
+
+    return recommendations
