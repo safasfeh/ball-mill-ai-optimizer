@@ -22,16 +22,40 @@ def load_models():
     return power_model, p80_model, thr_model
 
 
+def evaluate_point(speed, fill, feed, solids, bwi, cyclone):
+    power_model, p80_model, thr_model = load_models()
+
+    X = pd.DataFrame([{
+        "mill_speed_pct": speed,
+        "ball_filling_pct": fill,
+        "feed_rate_tph": feed,
+        "solids_pct": solids,
+        "bond_work_index": bwi,
+        "cyclone_pressure_kpa": cyclone
+    }])[FEATURES]
+
+    power = float(power_model.predict(X)[0])
+    p80 = float(p80_model.predict(X)[0])
+    thr = float(thr_model.predict(X)[0])
+    sec = power / thr
+
+    return {
+        "power_kw": power,
+        "p80_um": p80,
+        "throughput_tph": thr,
+        "SEC_kwh_per_t": sec
+    }
+
+
 def optimize(bwi, cyclone, target_p80, min_thr):
     power_model, p80_model, thr_model = load_models()
 
-    speed_range = np.arange(70, 80, 2)
-    fill_range = np.arange(28, 38, 2)
-    feed_range = np.arange(18, 28, 2)
-    solids_range = np.arange(62, 76, 3)
+    speed_range = np.arange(68, 81, 2)
+    fill_range = np.arange(28, 39, 2)
+    feed_range = np.arange(18, 29, 2)
+    solids_range = np.arange(62, 77, 3)
 
     rows = []
-
     for speed in speed_range:
         for fill in fill_range:
             for feed in feed_range:
@@ -46,25 +70,23 @@ def optimize(bwi, cyclone, target_p80, min_thr):
                     })
 
     df = pd.DataFrame(rows)
-
     X = df[FEATURES].copy()
 
     df["power_kw"] = power_model.predict(X)
     df["p80_um"] = p80_model.predict(X)
     df["throughput_tph"] = thr_model.predict(X)
-
     df["SEC_kwh_per_t"] = df["power_kw"] / df["throughput_tph"]
 
-    df = df[
+    feasible = df[
         (df["p80_um"] <= target_p80) &
         (df["throughput_tph"] >= min_thr) &
         (df["power_kw"] <= 1500)
     ]
 
-    if df.empty:
+    if feasible.empty:
         return None
 
-    best = df.sort_values("SEC_kwh_per_t").iloc[0]
+    best = feasible.sort_values("SEC_kwh_per_t").iloc[0]
 
     return {
         "speed_pct_critical": int(best["mill_speed_pct"]),
@@ -76,3 +98,40 @@ def optimize(bwi, cyclone, target_p80, min_thr):
         "throughput_tph": round(float(best["throughput_tph"]), 2),
         "SEC_kwh_per_t": round(float(best["SEC_kwh_per_t"]), 3),
     }
+
+
+def generate_contour_data(bwi, cyclone, fill, feed):
+    power_model, _, thr_model = load_models()
+
+    rows = []
+    for speed in np.arange(68, 81, 2):
+        for solids in np.arange(62, 77, 2):
+            rows.append({
+                "mill_speed_pct": speed,
+                "ball_filling_pct": fill,
+                "feed_rate_tph": feed,
+                "solids_pct": solids,
+                "bond_work_index": bwi,
+                "cyclone_pressure_kpa": cyclone
+            })
+
+    df = pd.DataFrame(rows)
+    X = df[FEATURES].copy()
+
+    df["power_kw"] = power_model.predict(X)
+    df["throughput_tph"] = thr_model.predict(X)
+    df["SEC_kwh_per_t"] = df["power_kw"] / df["throughput_tph"]
+
+    return df
+
+
+def get_feature_importance():
+    power_model, _, _ = load_models()
+    importance = power_model.feature_importances_
+
+    df = pd.DataFrame({
+        "Feature": FEATURES,
+        "Importance": importance
+    }).sort_values("Importance", ascending=False)
+
+    return df
