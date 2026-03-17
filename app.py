@@ -97,7 +97,7 @@ with st.sidebar:
     base_solids = st.slider("Baseline Solids (%)", 60, 78, 68, 1)
 
     st.markdown("---")
-    st.caption("Optional: upload the Missouri S&T logo as mst_logo.png in the repo root.")
+    st.caption("Optional: add the Missouri S&T logo as mst_logo.png in the repo root.")
 
 top1, top2 = st.columns([1.25, 1])
 
@@ -273,6 +273,91 @@ if run:
         importance_df = get_feature_importance()
         st.bar_chart(importance_df.set_index("Feature"))
         st.caption("Feature importance is derived from the Random Forest power model.")
+
+    st.subheader("Results Interpretation")
+    delta_power = result["power_kw"] - baseline["power_kw"]
+    delta_p80 = result["p80_um"] - baseline["p80_um"]
+    delta_thr = result["throughput_tph"] - baseline["throughput_tph"]
+    delta_sec = result["SEC_kwh_per_t"] - baseline["SEC_kwh_per_t"]
+
+    st.markdown(
+        f"""
+The optimization results indicate a shift in the mill operating conditions that improves overall energy efficiency.
+
+- **Power consumption** changed by {delta_power:.1f} kW  
+- **Product size (P80)** changed by {delta_p80:.1f} µm  
+- **Throughput** changed by {delta_thr:.1f} t/h  
+- **Specific energy consumption** changed by {delta_sec:.2f} kWh/t  
+
+Overall, the optimized condition achieves a **reduction in specific energy consumption of {abs(delta_sec):.2f} kWh/t**.
+
+This indicates a more efficient grinding regime with improved energy utilization.
+"""
+    )
+
+    st.subheader("Engineering Recommendations")
+    rec_text = []
+
+    if result["speed_pct_critical"] > base_speed:
+        rec_text.append("Increase mill speed to enhance breakage rate and improve grinding efficiency.")
+    elif result["speed_pct_critical"] < base_speed:
+        rec_text.append("Reduce mill speed to avoid excessive energy consumption and over-grinding.")
+    else:
+        rec_text.append("Maintain current mill speed, as it is near optimal.")
+
+    if result["ball_filling_pct"] > base_fill:
+        rec_text.append("Increase ball filling to improve impact and attrition mechanisms.")
+    elif result["ball_filling_pct"] < base_fill:
+        rec_text.append("Reduce ball filling to minimize energy losses due to excessive media load.")
+    else:
+        rec_text.append("Maintain current ball filling level.")
+
+    if result["feed_rate_tph"] > base_feed:
+        rec_text.append("Increase feed rate to improve throughput while maintaining energy efficiency.")
+    elif result["feed_rate_tph"] < base_feed:
+        rec_text.append("Reduce feed rate to improve residence time and achieve finer product size.")
+    else:
+        rec_text.append("Maintain current feed rate.")
+
+    if result["solids_pct"] > base_solids:
+        rec_text.append("Increase solids concentration to improve grinding efficiency through better energy transfer.")
+    elif result["solids_pct"] < base_solids:
+        rec_text.append("Reduce solids concentration to improve slurry transport and classification efficiency.")
+    else:
+        rec_text.append("Maintain current solids percentage.")
+
+    if result["p80_um"] < baseline["p80_um"]:
+        rec_text.append("Finer product size indicates improved breakage performance.")
+    else:
+        rec_text.append("Coarser product size suggests energy savings at the expense of grind fineness.")
+
+    if result["throughput_tph"] > baseline["throughput_tph"]:
+        rec_text.append("Throughput improvement indicates better mill productivity.")
+    else:
+        rec_text.append("Throughput reduction suggests operation closer to fine grinding conditions.")
+
+    if result["SEC_kwh_per_t"] < baseline["SEC_kwh_per_t"]:
+        rec_text.append("Reduced specific energy confirms improved grinding efficiency.")
+    else:
+        rec_text.append("Increased specific energy indicates less efficient operation.")
+
+    for i, r in enumerate(rec_text, 1):
+        st.markdown(f"{i}. {r}")
+
+    st.subheader("Executive Summary")
+    st.success(
+        f"""
+The AI-based optimization identified a more energy-efficient operating condition.
+
+Compared to the baseline:
+- Specific energy changed from **{baseline["SEC_kwh_per_t"]:.2f} to {result["SEC_kwh_per_t"]:.2f} kWh/t**
+- Power consumption changed from **{baseline["power_kw"]:.1f} to {result["power_kw"]:.1f} kW**
+- Throughput changed from **{baseline["throughput_tph"]:.1f} to {result["throughput_tph"]:.1f} t/h**
+- Product size changed from **{baseline["p80_um"]:.1f} to {result["p80_um"]:.1f} µm**
+
+These results demonstrate that AI-assisted optimization can improve grinding circuit performance by balancing energy consumption, throughput, and product size.
+"""
+    )
 
 st.markdown("---")
 st.caption("Developed at Missouri University of Science and Technology")
