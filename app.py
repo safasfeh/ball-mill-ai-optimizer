@@ -3,7 +3,14 @@ import streamlit as st
 from pathlib import Path
 import pandas as pd
 import matplotlib.pyplot as plt
-from optimizer import optimize, evaluate_point, generate_contour_data, get_feature_importance
+from optimizer import (
+    optimize,
+    evaluate_point,
+    generate_contour_data,
+    get_feature_importance,
+    generate_recommendations,
+    summarize_actions,
+)
 
 st.set_page_config(
     page_title="AI-Assisted Ball Mill Energy Optimization",
@@ -18,7 +25,6 @@ if not POWER_MODEL.exists():
     import train_model
     train_model.main()
 
-# ---------------- Custom Styling ----------------
 st.markdown("""
 <style>
 .block-container {
@@ -56,7 +62,6 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-# ---------------- Header ----------------
 logo_path = Path("mst_logo.png")
 header_left, header_right = st.columns([1, 7])
 
@@ -77,7 +82,6 @@ with header_right:
         unsafe_allow_html=True
     )
 
-# ---------------- Sidebar ----------------
 with st.sidebar:
     st.header("Process Inputs")
     bwi = st.slider("Bond Work Index (kWh/t)", 10.0, 20.0, 15.0, 0.1)
@@ -93,9 +97,8 @@ with st.sidebar:
     base_solids = st.slider("Baseline Solids (%)", 60, 78, 68, 1)
 
     st.markdown("---")
-    st.caption("Tip: upload your Missouri S&T logo as `mst_logo.png` in the repo root.")
+    st.caption("Optional: upload the Missouri S&T logo as mst_logo.png in the repo root.")
 
-# ---------------- Top Overview ----------------
 top1, top2 = st.columns([1.25, 1])
 
 with top1:
@@ -139,7 +142,6 @@ and selects the operating point with the **lowest specific energy consumption** 
     st.markdown('<div class="small-note">Constraints: target P80, minimum throughput, motor/load limit.</div>', unsafe_allow_html=True)
     st.markdown('</div>', unsafe_allow_html=True)
 
-# ---------------- Action ----------------
 run = st.button("Run Optimization", type="primary", use_container_width=True)
 
 if run:
@@ -160,118 +162,117 @@ if run:
             min_thr=min_thr
         )
 
-    if result is None:
-        st.warning("No fully feasible solution was found. The dashboard below may still show the closest low-energy operating region if available.")
-    else:
-        energy_saving_pct = 100 * (baseline["SEC_kwh_per_t"] - result["SEC_kwh_per_t"]) / baseline["SEC_kwh_per_t"]
+    energy_saving_pct = 100 * (baseline["SEC_kwh_per_t"] - result["SEC_kwh_per_t"]) / baseline["SEC_kwh_per_t"]
 
-        st.subheader("KPI Dashboard")
-        k1, k2, k3, k4 = st.columns(4)
-        k1.metric("Optimized Power (kW)", f'{result["power_kw"]:.1f}', f'{result["power_kw"] - baseline["power_kw"]:.1f}')
-        k2.metric("Optimized P80 (µm)", f'{result["p80_um"]:.1f}', f'{result["p80_um"] - baseline["p80_um"]:.1f}')
-        k3.metric("Optimized Throughput (t/h)", f'{result["throughput_tph"]:.1f}', f'{result["throughput_tph"] - baseline["throughput_tph"]:.1f}')
-        k4.metric("Energy Savings", f"{energy_saving_pct:.1f}%", f"{energy_saving_pct:.1f}%")
+    st.subheader("KPI Dashboard")
+    k1, k2, k3, k4 = st.columns(4)
+    k1.metric("Optimized Power (kW)", f'{result["power_kw"]:.1f}', f'{result["power_kw"] - baseline["power_kw"]:.1f}')
+    k2.metric("Optimized P80 (µm)", f'{result["p80_um"]:.1f}', f'{result["p80_um"] - baseline["p80_um"]:.1f}')
+    k3.metric("Optimized Throughput (t/h)", f'{result["throughput_tph"]:.1f}', f'{result["throughput_tph"] - baseline["throughput_tph"]:.1f}')
+    k4.metric("Energy Savings", f"{energy_saving_pct:.1f}%", f"{energy_saving_pct:.1f}%")
 
-        tab1, tab2, tab3 = st.tabs(["Comparison", "Visual Analytics", "Model Insight"])
+    baseline_inputs = {
+        "speed": base_speed,
+        "fill": base_fill,
+        "feed": base_feed,
+        "solids": base_solids
+    }
+    recommendations = generate_recommendations(baseline_inputs, result)
+    summary_text = summarize_actions(baseline_inputs, result)
 
-        with tab1:
-            comparison_df = pd.DataFrame({
-                "Variable": [
-                    "Mill Speed (% critical)",
-                    "Ball Filling (%)",
-                    "Feed Rate (t/h)",
-                    "Solids (%)",
-                    "Power (kW)",
-                    "P80 (µm)",
-                    "Throughput (t/h)",
-                    "SEC (kWh/t)"
-                ],
-                "Baseline": [
-                    base_speed,
-                    base_fill,
-                    base_feed,
-                    base_solids,
-                    round(baseline["power_kw"], 2),
-                    round(baseline["p80_um"], 2),
-                    round(baseline["throughput_tph"], 2),
-                    round(baseline["SEC_kwh_per_t"], 3)
-                ],
-                "Optimized": [
-                    result["speed_pct_critical"],
-                    result["ball_filling_pct"],
-                    result["feed_rate_tph"],
-                    result["solids_pct"],
-                    result["power_kw"],
-                    result["p80_um"],
-                    result["throughput_tph"],
-                    result["SEC_kwh_per_t"]
-                ]
-            })
-            st.dataframe(comparison_df, use_container_width=True, hide_index=True)
+    st.subheader("Recommended Control Actions")
+    st.success(summary_text)
 
-            st.markdown("### Executive Summary")
-            st.markdown(
-                f"""
-- **Optimized mill speed:** {result["speed_pct_critical"]}% critical  
-- **Optimized ball filling:** {result["ball_filling_pct"]}%  
-- **Optimized feed rate:** {result["feed_rate_tph"]} t/h  
-- **Optimized solids:** {result["solids_pct"]}%  
-- **Predicted power draw:** {result["power_kw"]} kW  
-- **Predicted product size (P80):** {result["p80_um"]} µm  
-- **Predicted throughput:** {result["throughput_tph"]} t/h  
-- **Specific energy consumption:** {result["SEC_kwh_per_t"]} kWh/t  
-                """
+    st.subheader("Operational Recommendations")
+    for i, rec in enumerate(recommendations, start=1):
+        st.markdown(f"{i}. {rec}")
+
+    tab1, tab2, tab3 = st.tabs(["Comparison", "Visual Analytics", "Model Insight"])
+
+    with tab1:
+        comparison_df = pd.DataFrame({
+            "Variable": [
+                "Mill Speed (% critical)",
+                "Ball Filling (%)",
+                "Feed Rate (t/h)",
+                "Solids (%)",
+                "Power (kW)",
+                "P80 (µm)",
+                "Throughput (t/h)",
+                "SEC (kWh/t)"
+            ],
+            "Baseline": [
+                base_speed,
+                base_fill,
+                base_feed,
+                base_solids,
+                round(baseline["power_kw"], 2),
+                round(baseline["p80_um"], 2),
+                round(baseline["throughput_tph"], 2),
+                round(baseline["SEC_kwh_per_t"], 3)
+            ],
+            "Optimized": [
+                result["speed_pct_critical"],
+                result["ball_filling_pct"],
+                result["feed_rate_tph"],
+                result["solids_pct"],
+                result["power_kw"],
+                result["p80_um"],
+                result["throughput_tph"],
+                result["SEC_kwh_per_t"]
+            ]
+        })
+        st.dataframe(comparison_df, use_container_width=True, hide_index=True)
+
+    with tab2:
+        left, right = st.columns(2)
+
+        with left:
+            st.markdown("#### Predicted Power vs Mill Speed")
+            speeds = list(range(65, 83, 2))
+            power_vals = []
+            for s in speeds:
+                pred = evaluate_point(
+                    speed=s,
+                    fill=result["ball_filling_pct"],
+                    feed=result["feed_rate_tph"],
+                    solids=result["solids_pct"],
+                    bwi=bwi,
+                    cyclone=cyclone
+                )
+                power_vals.append(pred["power_kw"])
+
+            fig, ax = plt.subplots(figsize=(6, 4))
+            ax.plot(speeds, power_vals, marker="o")
+            ax.axvline(result["speed_pct_critical"], linestyle="--")
+            ax.set_xlabel("Mill Speed (% critical)")
+            ax.set_ylabel("Power (kW)")
+            ax.set_title("Predicted Power vs Mill Speed")
+            st.pyplot(fig, clear_figure=True)
+
+        with right:
+            st.markdown("#### Specific Energy Contour Map")
+            contour_df = generate_contour_data(
+                bwi=bwi,
+                cyclone=cyclone,
+                fill=result["ball_filling_pct"],
+                feed=result["feed_rate_tph"]
             )
 
-        with tab2:
-            left, right = st.columns(2)
+            pivot = contour_df.pivot(index="solids_pct", columns="mill_speed_pct", values="SEC_kwh_per_t")
+            fig2, ax2 = plt.subplots(figsize=(6, 4))
+            contour = ax2.contourf(pivot.columns, pivot.index, pivot.values, levels=15)
+            fig2.colorbar(contour, ax=ax2, label="SEC (kWh/t)")
+            ax2.set_xlabel("Mill Speed (% critical)")
+            ax2.set_ylabel("Solids (%)")
+            ax2.set_title("SEC Contour Map")
+            st.pyplot(fig2, clear_figure=True)
 
-            with left:
-                st.markdown("#### Predicted Power vs Mill Speed")
-                speeds = list(range(65, 83, 2))
-                power_vals = []
-                for s in speeds:
-                    pred = evaluate_point(
-                        speed=s,
-                        fill=result["ball_filling_pct"],
-                        feed=result["feed_rate_tph"],
-                        solids=result["solids_pct"],
-                        bwi=bwi,
-                        cyclone=cyclone
-                    )
-                    power_vals.append(pred["power_kw"])
-
-                fig, ax = plt.subplots(figsize=(6, 4))
-                ax.plot(speeds, power_vals, marker="o")
-                ax.axvline(result["speed_pct_critical"], linestyle="--")
-                ax.set_xlabel("Mill Speed (% critical)")
-                ax.set_ylabel("Power (kW)")
-                ax.set_title("Predicted Power vs Mill Speed")
-                st.pyplot(fig, clear_figure=True)
-
-            with right:
-                st.markdown("#### Specific Energy Contour Map")
-                contour_df = generate_contour_data(
-                    bwi=bwi,
-                    cyclone=cyclone,
-                    fill=result["ball_filling_pct"],
-                    feed=result["feed_rate_tph"]
-                )
-
-                pivot = contour_df.pivot(index="solids_pct", columns="mill_speed_pct", values="SEC_kwh_per_t")
-                fig2, ax2 = plt.subplots(figsize=(6, 4))
-                contour = ax2.contourf(pivot.columns, pivot.index, pivot.values, levels=15)
-                fig2.colorbar(contour, ax=ax2, label="SEC (kWh/t)")
-                ax2.set_xlabel("Mill Speed (% critical)")
-                ax2.set_ylabel("Solids (%)")
-                ax2.set_title("SEC Contour Map")
-                st.pyplot(fig2, clear_figure=True)
-
-        with tab3:
-            st.markdown("#### Power Model Feature Importance")
-            importance_df = get_feature_importance()
-            st.bar_chart(importance_df.set_index("Feature"))
-            st.caption("Feature importance is derived from the Random Forest power model.")
+    with tab3:
+        st.markdown("#### Power Model Feature Importance")
+        importance_df = get_feature_importance()
+        st.bar_chart(importance_df.set_index("Feature"))
+        st.caption("Feature importance is derived from the Random Forest power model.")
 
 st.markdown("---")
 st.caption("Developed at Missouri University of Science and Technology")
