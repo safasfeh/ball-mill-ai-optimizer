@@ -85,7 +85,6 @@ def optimize(bwi, cyclone, target_p80, min_thr):
     ]
 
     if feasible.empty:
-        # Fallback: return lowest-energy point overall so the app always demonstrates a result
         best = df.sort_values("SEC_kwh_per_t").iloc[0]
     else:
         best = feasible.sort_values("SEC_kwh_per_t").iloc[0]
@@ -138,6 +137,7 @@ def get_feature_importance():
 
     return df
 
+
 def generate_recommendations(baseline_inputs, optimized_result):
     recommendations = []
 
@@ -155,9 +155,9 @@ def generate_recommendations(baseline_inputs, optimized_result):
             baseline_inputs["speed"],
             optimized_result["speed_pct_critical"],
             1,
-            "Increase mill speed to improve grinding efficiency and lower specific energy.",
+            "Increase mill speed to improve grinding efficiency and reduce specific energy.",
             "Reduce mill speed to avoid unnecessary power draw.",
-            "Maintain current mill speed."
+            "Maintain the current mill speed."
         )
     )
 
@@ -168,7 +168,7 @@ def generate_recommendations(baseline_inputs, optimized_result):
             1,
             "Increase ball filling to strengthen grinding action.",
             "Reduce ball filling to avoid excessive charge load and energy use.",
-            "Maintain current ball filling."
+            "Maintain the current ball filling."
         )
     )
 
@@ -178,8 +178,8 @@ def generate_recommendations(baseline_inputs, optimized_result):
             optimized_result["feed_rate_tph"],
             0.5,
             "Increase feed rate to improve throughput while maintaining acceptable energy efficiency.",
-            "Reduce feed rate to improve grind size control and reduce overload risk.",
-            "Maintain current feed rate."
+            "Reduce feed rate to improve grind size control and lower overload risk.",
+            "Maintain the current feed rate."
         )
     )
 
@@ -190,8 +190,22 @@ def generate_recommendations(baseline_inputs, optimized_result):
             1,
             "Increase slurry solids to improve energy utilization in the mill.",
             "Reduce slurry solids to improve transport and avoid viscosity-related inefficiencies.",
-            "Maintain current solids percentage."
+            "Maintain the current solids percentage."
         )
     )
 
+    recommendations.append(
+        "After implementing the new setpoint, monitor cyclone performance and verify that the product P80 remains within the target range."
+    )
+
     return recommendations
+
+
+def summarize_actions(baseline_inputs, optimized_result):
+    return (
+        f"Recommended adjustments relative to the baseline: "
+        f"mill speed {baseline_inputs['speed']}% → {optimized_result['speed_pct_critical']}%, "
+        f"ball filling {baseline_inputs['fill']}% → {optimized_result['ball_filling_pct']}%, "
+        f"feed rate {baseline_inputs['feed']} t/h → {optimized_result['feed_rate_tph']} t/h, "
+        f"and solids {baseline_inputs['solids']}% → {optimized_result['solids_pct']}%."
+    )
