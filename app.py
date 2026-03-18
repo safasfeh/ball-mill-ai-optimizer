@@ -97,7 +97,7 @@ with st.sidebar:
     base_solids = st.slider("Baseline Solids (%)", 60, 78, 68, 1)
 
     st.markdown("---")
-    st.caption("Optional: add the Missouri S&T logo as mst_logo.png in the repo root.")
+    st.caption("")
 
 top1, top2 = st.columns([1.25, 1])
 
